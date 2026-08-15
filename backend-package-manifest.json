@@ -1,0 +1,24 @@
+{
+  "function_ids": [
+    "capability_create_habits_60ad1db9.function.create_habit",
+    "capability_create_habits_60ad1db9.function.list_habits",
+    "capability_daily_habit_completion_tracking_766e9d08.function.mark_habit_complete",
+    "capability_daily_habit_completion_tracking_766e9d08.function.get_habit_completions",
+    "capability_daily_habit_completion_tracking_766e9d08.function.get_today_completions",
+    "capability_account_creation_bdf66f42.function.sign_up",
+    "capability_account_creation_bdf66f42.function.log_in",
+    "capability_account_creation_bdf66f42.function.verify_session",
+    "capability_completion_rate_statistics_5a591160.function.get_all_habits_completion_rates",
+    "capability_completion_rate_statistics_5a591160.function.get_habit_completion_rate",
+    "capability_current_streak_display_669ed488.function.get_habit_current_streak",
+    "capability_current_streak_display_669ed488.function.get_all_habits_streaks",
+    "capability_calendar_heatmap_visualization_28ed1af0.function.get_habit_heatmap_data"
+  ],
+  "project_slug": "habit",
+  "schema_version": "backend-package-source-manifest-v2",
+  "source": {
+    "architecture_id": "architecture:scope_habit_903b2d35:3e1193ea1cbe3cb2e70de27a4fd80c9f2afe6b9178a6b35530a4dde634a20c70",
+    "architecture_session_id": "fc5e13ea-98eb-44cd-9fd3-58db8d85b272",
+    "architecture_source_hash": "3e1193ea1cbe3cb2e70de27a4fd80c9f2afe6b9178a6b35530a4dde634a20c70"
+  }
+}
