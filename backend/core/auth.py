@@ -1,6 +1,7 @@
 """HS256 bearer tokens and PBKDF2 password utilities."""
 
 import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -9,6 +10,7 @@ import time
 from functools import wraps
 
 from flask import g, jsonify, request
+from werkzeug.security import check_password_hash
 
 from backend.core.config import get_settings
 
@@ -35,8 +37,18 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, encoded: str) -> bool:
+    encoded = str(encoded)
+    if not encoded.startswith("pbkdf2_sha256$"):
+        # Accounts created by the original Flask implementation used
+        # Werkzeug's versioned scrypt/pbkdf2 hashes. Keep those accounts
+        # usable while new passwords use the format produced above.
+        try:
+            return check_password_hash(encoded, str(password))
+        except (TypeError, ValueError):
+            return False
+
     try:
-        algorithm, rounds, salt, expected = str(encoded).split("$", 3)
+        algorithm, rounds, salt, expected = encoded.split("$", 3)
         if algorithm != "pbkdf2_sha256":
             return False
         actual = hashlib.pbkdf2_hmac(
@@ -46,7 +58,7 @@ def verify_password(password: str, encoded: str) -> bool:
             int(rounds),
         )
         return hmac.compare_digest(actual, _decode_segment(expected))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, binascii.Error):
         return False
 
 
@@ -90,6 +102,8 @@ def _verify_token(token: str) -> dict:
         signature = _decode_segment(signature_part)
     except Exception as exc:
         raise ValueError("invalid_token") from exc
+    if not isinstance(header, dict) or not isinstance(payload, dict):
+        raise ValueError("invalid_token")
     if header.get("alg") != "HS256":
         raise ValueError("invalid_token_algorithm")
     settings = get_settings()
@@ -109,16 +123,32 @@ def _verify_token(token: str) -> dict:
     return payload
 
 
+def current_user_id() -> str:
+    """Return the authenticated user identifier for the current request."""
+    identity = getattr(g, "identity", None) or {}
+    subject = identity.get("sub")
+    if not subject:
+        raise RuntimeError("authenticated_user_required")
+    return str(subject)
+
+
 def require_auth(handler):
     @wraps(handler)
     def wrapped(*args, **kwargs):
         authorization = request.headers.get("Authorization", "")
-        if not authorization.startswith("Bearer "):
-            return jsonify({"error": "authentication_required"}), 401
+        scheme, separator, token = authorization.partition(" ")
+        if not separator or scheme.lower() != "bearer" or not token.strip():
+            return jsonify({
+                "error": "UNAUTHORIZED",
+                "message": "Authentication required",
+            }), 401
         try:
-            g.identity = _verify_token(authorization[7:].strip())
-        except ValueError as exc:
-            return jsonify({"error": str(exc)}), 401
+            g.identity = _verify_token(token.strip())
+        except ValueError:
+            return jsonify({
+                "error": "INVALID_TOKEN",
+                "message": "Authentication token is invalid or expired",
+            }), 401
         return handler(*args, **kwargs)
 
     return wrapped
@@ -131,10 +161,11 @@ def load_optional_auth(handler):
         if not authorization:
             g.identity = None
             return handler(*args, **kwargs)
-        if not authorization.startswith("Bearer "):
+        scheme, separator, token = authorization.partition(" ")
+        if not separator or scheme.lower() != "bearer" or not token.strip():
             return jsonify({"error": "invalid_authorization"}), 401
         try:
-            g.identity = _verify_token(authorization[7:].strip())
+            g.identity = _verify_token(token.strip())
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 401
         return handler(*args, **kwargs)

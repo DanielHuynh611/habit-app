@@ -1,253 +1,121 @@
-"""
-Completion Rate Statistics Feature Module
+"""Habit completion-rate statistics endpoints."""
 
-This module provides endpoints to calculate and retrieve habit completion rates
-for authenticated users. Completion rate is calculated as (completed days / total days tracked) × 100.
-"""
-
-from flask import Blueprint, jsonify, request, g
-from functools import wraps
-from datetime import datetime, date
 import uuid
+from datetime import date, datetime
+
+from flask import Blueprint, jsonify
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-# Assuming these are available from the main application
-# from app import db
-# from app.auth import get_current_user
+from backend.core.auth import current_user_id, require_auth
+from backend.core.db import get_engine
 
-bp = Blueprint('completion_rate_statistics', __name__)
-
-
-def require_auth(f):
-    """Decorator to require authentication for endpoints"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        # Check if user is authenticated (assumes authentication middleware sets g.user)
-        if not hasattr(g, 'user') or g.user is None:
-            return jsonify({
-                'code': 'UNAUTHORIZED',
-                'message': 'Authentication required'
-            }), 401
-        return f(*args, **kwargs)
-    return decorated_function
+bp = Blueprint("completion_rate_statistics", __name__)
 
 
-def get_db():
-    """Get database connection from Flask g object"""
-    from flask import current_app
-    if not hasattr(g, 'db'):
-        g.db = current_app.extensions['sqlalchemy'].db
-    return g.db
+def _as_date(value) -> date:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00")).date()
 
 
-def calculate_completion_rate_for_habit(db, habit_id, user_id):
-    """
-    Calculate completion rate for a single habit.
-    
-    Args:
-        db: Database session
-        habit_id: UUID of the habit
-        user_id: UUID of the user
-        
-    Returns:
-        dict with habit_id, completion_rate, completed_days, total_days
-        None if habit not found or doesn't belong to user
-    """
-    # First verify the habit exists and belongs to the user
-    habit_query = text("""
-        SELECT id, created_at 
-        FROM habits 
-        WHERE id = :habit_id AND user_id = :user_id
-    """)
-    
-    result = db.session.execute(
-        habit_query,
-        {'habit_id': habit_id, 'user_id': user_id}
-    ).fetchone()
-    
-    if not result:
+def calculate_completion_rate_for_habit(connection, habit_id, user_id):
+    habit = connection.execute(
+        text("""
+            SELECT id, created_at
+            FROM habits
+            WHERE id = :habit_id AND user_id = :user_id
+        """),
+        {"habit_id": habit_id, "user_id": user_id},
+    ).mappings().first()
+    if not habit:
         return None
-    
-    habit_created_at = result[1]
-    
-    # Calculate total days from creation to today
-    if isinstance(habit_created_at, str):
-        habit_created_at = datetime.fromisoformat(habit_created_at.replace('Z', '+00:00'))
-    
+
     today = date.today()
-    if isinstance(habit_created_at, datetime):
-        creation_date = habit_created_at.date()
-    else:
-        creation_date = habit_created_at
-    
-    total_days = (today - creation_date).days + 1
-    
-    if total_days < 1:
-        total_days = 1
-    
-    # Count completed days
-    completed_query = text("""
-        SELECT COUNT(DISTINCT DATE(completed_at)) as completed_count
-        FROM habit_completions
-        WHERE habit_id = :habit_id
-    """)
-    
-    completed_result = db.session.execute(
-        completed_query,
-        {'habit_id': habit_id}
-    ).fetchone()
-    
-    completed_days = completed_result[0] if completed_result and completed_result[0] else 0
-    
-    # Calculate completion rate
-    completion_rate = (completed_days / total_days) * 100 if total_days > 0 else 0.0
-    
-    # Ensure completion_rate doesn't exceed 100
-    completion_rate = min(completion_rate, 100.0)
-    
+    creation_date = _as_date(habit["created_at"])
+    total_days = max((today - creation_date).days + 1, 1)
+    completed_days = connection.execute(
+        text("""
+            SELECT COUNT(DISTINCT completion_date)
+            FROM habit_completions
+            WHERE habit_id = :habit_id
+              AND is_completed = :is_completed
+              AND completion_date BETWEEN :creation_date AND :today
+        """),
+        {
+            "habit_id": habit_id,
+            "is_completed": True,
+            "creation_date": creation_date,
+            "today": today,
+        },
+    ).scalar_one()
+    completed_days = int(completed_days or 0)
+    completion_rate = min((completed_days / total_days) * 100, 100.0)
     return {
-        'habit_id': habit_id,
-        'completion_rate': round(completion_rate, 2),
-        'completed_days': completed_days,
-        'total_days': total_days
+        "habit_id": str(habit_id),
+        "completion_rate": round(completion_rate, 2),
+        "completed_days": completed_days,
+        "total_days": total_days,
     }
 
 
-@bp.route('/api/habits/completion-rates', methods=['GET'])
+@bp.get("/api/habits/completion-rates")
 @require_auth
 def get_all_habits_completion_rates():
-    """
-    Retrieves completion rate statistics for all habits belonging to the authenticated user.
-    Calculates (completed days / total days tracked) × 100 for each habit.
-    """
+    user_id = current_user_id()
     try:
-        db = get_db()
-        user_id = g.user['id'] if isinstance(g.user, dict) else g.user.id
-        
-        # Get all habits for the user
-        habits_query = text("""
-            SELECT id, created_at
-            FROM habits
-            WHERE user_id = :user_id
-            ORDER BY created_at DESC
-        """)
-        
-        habits = db.session.execute(
-            habits_query,
-            {'user_id': user_id}
-        ).fetchall()
-        
-        completion_rates = []
-        
-        for habit in habits:
-            habit_id = habit[0]
-            habit_created_at = habit[1]
-            
-            # Calculate total days from creation to today
-            if isinstance(habit_created_at, str):
-                habit_created_at = datetime.fromisoformat(habit_created_at.replace('Z', '+00:00'))
-            
-            today = date.today()
-            if isinstance(habit_created_at, datetime):
-                creation_date = habit_created_at.date()
-            else:
-                creation_date = habit_created_at
-            
-            total_days = (today - creation_date).days + 1
-            
-            if total_days < 1:
-                total_days = 1
-            
-            # Count completed days
-            completed_query = text("""
-                SELECT COUNT(DISTINCT DATE(completed_at)) as completed_count
-                FROM habit_completions
-                WHERE habit_id = :habit_id
-            """)
-            
-            completed_result = db.session.execute(
-                completed_query,
-                {'habit_id': habit_id}
-            ).fetchone()
-            
-            completed_days = completed_result[0] if completed_result and completed_result[0] else 0
-            
-            # Calculate completion rate
-            completion_rate = (completed_days / total_days) * 100 if total_days > 0 else 0.0
-            
-            # Ensure completion_rate doesn't exceed 100
-            completion_rate = min(completion_rate, 100.0)
-            
-            completion_rates.append({
-                'habit_id': str(habit_id),
-                'completion_rate': round(completion_rate, 2),
-                'completed_days': completed_days,
-                'total_days': total_days
-            })
-        
+        with get_engine().connect() as connection:
+            habit_ids = connection.execute(
+                text("""
+                    SELECT id
+                    FROM habits
+                    WHERE user_id = :user_id
+                    ORDER BY created_at DESC
+                """),
+                {"user_id": user_id},
+            ).scalars().all()
+            completion_rates = [
+                calculate_completion_rate_for_habit(
+                    connection, habit_id, user_id
+                )
+                for habit_id in habit_ids
+            ]
+    except (SQLAlchemyError, TypeError, ValueError):
         return jsonify({
-            'completion_rates': completion_rates
-        }), 200
-        
-    except SQLAlchemyError as e:
-        return jsonify({
-            'code': 'INTERNAL_ERROR',
-            'message': 'Failed to calculate completion rates'
-        }), 500
-    except Exception as e:
-        return jsonify({
-            'code': 'INTERNAL_ERROR',
-            'message': 'Failed to calculate completion rates'
+            "code": "INTERNAL_ERROR",
+            "message": "Failed to calculate completion rates",
         }), 500
 
+    return jsonify({"completion_rates": completion_rates}), 200
 
-@bp.route('/api/habits/<habit_id>/completion-rate', methods=['GET'])
+
+@bp.get("/api/habits/<habit_id>/completion-rate")
 @require_auth
 def get_habit_completion_rate(habit_id):
-    """
-    Retrieves the completion rate statistic for a single habit.
-    Calculates (completed days / total days tracked) × 100.
-    """
     try:
-        # Validate UUID format
-        try:
-            uuid.UUID(habit_id)
-        except (ValueError, AttributeError):
-            return jsonify({
-                'code': 'HABIT_NOT_FOUND',
-                'message': 'Habit not found or does not belong to user'
-            }), 404
-        
-        db = get_db()
-        user_id = g.user['id'] if isinstance(g.user, dict) else g.user.id
-        
-        # Calculate completion rate
-        result = calculate_completion_rate_for_habit(db, habit_id, user_id)
-        
-        if result is None:
-            return jsonify({
-                'code': 'HABIT_NOT_FOUND',
-                'message': 'Habit not found or does not belong to user'
-            }), 404
-        
-        # Ensure habit_id is string format
-        result['habit_id'] = str(result['habit_id'])
-        
-        return jsonify(result), 200
-        
-    except SQLAlchemyError as e:
+        uuid.UUID(habit_id)
+    except (ValueError, AttributeError):
         return jsonify({
-            'code': 'INTERNAL_ERROR',
-            'message': 'Failed to calculate completion rate'
-        }), 500
-    except Exception as e:
+            "code": "HABIT_NOT_FOUND",
+            "message": "Habit not found or does not belong to user",
+        }), 404
+
+    try:
+        with get_engine().connect() as connection:
+            result = calculate_completion_rate_for_habit(
+                connection, habit_id, current_user_id()
+            )
+    except (SQLAlchemyError, TypeError, ValueError):
         return jsonify({
-            'code': 'INTERNAL_ERROR',
-            'message': 'Failed to calculate completion rate'
+            "code": "INTERNAL_ERROR",
+            "message": "Failed to calculate completion rate",
         }), 500
 
-
-def init_app(app):
-    """Initialize the blueprint with the Flask app"""
-    app.register_blueprint(bp)
+    if result is None:
+        return jsonify({
+            "code": "HABIT_NOT_FOUND",
+            "message": "Habit not found or does not belong to user",
+        }), 404
+    return jsonify(result), 200

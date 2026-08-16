@@ -1,0 +1,89 @@
+{
+  "normalizations": {
+    "legacy_tailwind_runtime_removed": []
+  },
+  "project_slug": "habit",
+  "route_collisions": [],
+  "runtime_verification": {
+    "errors": [],
+    "valid": true
+  },
+  "schema_version": "frontend-package-manifest-v3",
+  "screen_routes": [
+    {
+      "feature_id": "capability_create_habits_60ad1db9",
+      "path": "frontend/features/create_habits/habits_list.html",
+      "route": "/habits",
+      "screen_id": "capability_create_habits_60ad1db9.screen.habits_list"
+    },
+    {
+      "feature_id": "capability_create_habits_60ad1db9",
+      "path": "frontend/features/create_habits/create_habit.html",
+      "route": "/habits/new",
+      "screen_id": "capability_create_habits_60ad1db9.screen.create_habit"
+    },
+    {
+      "feature_id": "capability_daily_habit_completion_tracking_766e9d08",
+      "path": "frontend/features/daily_habit_completion_tracking/daily_habit_tracker.html",
+      "route": "/habits/today",
+      "screen_id": "capability_daily_habit_completion_tracking_766e9d08.screen.daily_habit_tracker"
+    },
+    {
+      "feature_id": "capability_account_creation_bdf66f42",
+      "path": "frontend/features/account_creation/sign_up.html",
+      "route": "/signup",
+      "screen_id": "capability_account_creation_bdf66f42.screen.signup"
+    },
+    {
+      "feature_id": "capability_account_creation_bdf66f42",
+      "path": "frontend/features/account_creation/log_in.html",
+      "route": "/login",
+      "screen_id": "capability_account_creation_bdf66f42.screen.login"
+    },
+    {
+      "feature_id": "capability_completion_rate_statistics_5a591160",
+      "path": "frontend/features/completion_rate_statistics/habits_dashboard.html",
+      "route": "/dashboard",
+      "screen_id": "capability_completion_rate_statistics_5a591160.screen.habits_dashboard"
+    },
+    {
+      "feature_id": "capability_completion_rate_statistics_5a591160",
+      "path": "frontend/features/completion_rate_statistics/habit_detail_view.html",
+      "route": "/habits/{habit_id}",
+      "screen_id": "capability_completion_rate_statistics_5a591160.screen.habit_detail"
+    },
+    {
+      "feature_id": "capability_current_streak_display_669ed488",
+      "path": "frontend/features/current_streak_display/habit_list_with_streaks.html",
+      "route": "/streaks",
+      "screen_id": "capability_current_streak_display_669ed488.screen.habit_list_with_streaks"
+    },
+    {
+      "feature_id": "capability_current_streak_display_669ed488",
+      "path": "frontend/features/current_streak_display/habit_detail_with_streak.html",
+      "route": "/habits/{habit_id}/streak",
+      "screen_id": "capability_current_streak_display_669ed488.screen.habit_detail_with_streak"
+    },
+    {
+      "feature_id": "capability_calendar_heatmap_visualization_28ed1af0",
+      "path": "frontend/features/calendar_heatmap_visualization/habit_heatmap_view.html",
+      "route": "/habits/{habit_id}/heatmap",
+      "screen_id": "capability_calendar_heatmap_visualization_28ed1af0.screen.habit_heatmap_view"
+    }
+  ],
+  "source": {
+    "architecture_workspace_id": "fc5e13ea-98eb-44cd-9fd3-58db8d85b272",
+    "backend_package_hash": "40409c7d96988e52c3ed4d7833f0c10947a1c84ada5e5c395613d48962a300e8",
+    "backend_package_id": "8a47042a-389d-447d-90c5-5ca78b7066e6",
+    "backend_workspace_id": "b191f02e-1a0f-427b-8c44-8a2b6e979780",
+    "feature_hashes": {
+      "capability_account_creation_bdf66f42": "bd8f3500a2480c5d6a0467a65d130829e188fba05d90149a540ca891a76f165d",
+      "capability_calendar_heatmap_visualization_28ed1af0": "a7a29ff184cfbce72ded509df0e744d03d627f95ce873270648416ecb260d4d6",
+      "capability_completion_rate_statistics_5a591160": "29709b11c6066b1ab40af305cff80df55d15c492b9894eece1cd24457fa95f1f",
+      "capability_create_habits_60ad1db9": "69e79190c1608ea587447e56845cf17101955edd88ec79d73350b3319bd1bb39",
+      "capability_current_streak_display_669ed488": "015a346903f433248a810f5219ecd64b7b5ecb22bc00946f5f4471b13c75e181",
+      "capability_daily_habit_completion_tracking_766e9d08": "1f80694f6df9eeb1bfdffeb9db9663eb3cf10287196928797cdd5aac646c7540"
+    },
+    "foundation_hash": "ef03faf028b97f8537753ee162cffee5880c3e2ddd1eb5e62f2e03b4b239431b"
+  }
+}
